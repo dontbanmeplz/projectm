@@ -28,6 +28,9 @@
 
 #include <Audio/PCM.hpp>
 
+#include <MilkdropPreset/PreparedPresetData.hpp>
+#include <MilkdropPreset/Factory.hpp>
+
 #include <Renderer/CopyTexture.hpp>
 #include <Renderer/PresetTransition.hpp>
 #include <Renderer/ShaderCache.hpp>
@@ -82,6 +85,37 @@ void ProjectM::LoadPresetData(std::istream& presetData, bool smoothTransition)
     {
         LOG_ERROR(ex.what());
         PresetSwitchFailedEvent("", ex.what());
+    }
+}
+
+void ProjectM::LoadPreparedPreset(std::unique_ptr<MilkdropPreset::PreparedPresetData> data,
+                                   bool smoothTransition)
+{
+    if (!data || !data->valid)
+    {
+        std::string filePath = data ? data->filePath : "";
+        std::string errorMsg = data ? data->errorMessage : "null prepared preset data";
+        LOG_ERROR("[ProjectM] Cannot load prepared preset: " + errorMsg);
+        PresetSwitchFailedEvent(filePath, errorMsg);
+        return;
+    }
+
+    try
+    {
+        m_textureManager->PurgeTextures();
+
+        // Create and initialize the preset via the factory (handles include isolation)
+        auto preset = MilkdropPreset::Factory::CreatePresetFromPreparedData(
+            *data, GetRenderContext());
+
+        // Start the transition. The m_initialized flag in MilkdropPreset prevents
+        // StartPresetTransition from calling Initialize() again.
+        StartPresetTransition(std::move(preset), !smoothTransition);
+    }
+    catch (const std::exception& ex)
+    {
+        LOG_ERROR(ex.what());
+        PresetSwitchFailedEvent(data->filePath, ex.what());
     }
 }
 

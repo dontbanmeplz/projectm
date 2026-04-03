@@ -67,6 +67,50 @@ public:
      */
     auto Shader() -> Renderer::Shader&;
 
+    /**
+     * @brief Generates stub sampler and texsize declarations from sampler names only (no GL context).
+     *
+     * Uses the sampler names extracted by LoadCode() to produce the same HLSL declaration strings
+     * that TranspileHLSLShader() would normally get from loaded TextureSamplerDescriptors.
+     * Only "noisevol_lq" and "noisevol_hq" are declared as sampler3D; all others are sampler2D.
+     *
+     * @param outSamplerDecls Set to receive sampler uniform declarations.
+     * @param outTexSizeDecls Set to receive texsize uniform declarations.
+     * @param blurTexture A BlurTexture instance (may be default-constructed) for blur descriptor declarations.
+     */
+    void GenerateStubDeclarations(
+        std::set<std::string>& outSamplerDecls,
+        std::set<std::string>& outTexSizeDecls,
+        const BlurTexture& blurTexture) const;
+
+    /**
+     * @brief Transpiles the preprocessed HLSL shader to GLSL without compiling (no GL context required).
+     *
+     * Takes pre-built sampler/texsize declarations (from GenerateStubDeclarations or from loaded textures)
+     * and returns the transpiled GLSL fragment shader source string. Does NOT call CompileProgram().
+     *
+     * @param samplerDecls Sampler uniform declarations to prepend to the HLSL source.
+     * @param texSizeDecls Texsize uniform declarations to prepend to the HLSL source.
+     * @return The transpiled GLSL fragment shader source code.
+     * @throws Renderer::ShaderException if transpilation fails.
+     */
+    std::string TranspileToGLSL(
+        const std::set<std::string>& samplerDecls,
+        const std::set<std::string>& texSizeDecls);
+
+    /**
+     * @brief Loads textures and compiles the shader from pre-transpiled GLSL (GL context required).
+     *
+     * Resolves sampler names to actual GL textures via TextureManager, then compiles the shader
+     * program using the provided pre-transpiled GLSL fragment source.
+     *
+     * @param presetState The preset state for texture and blur level access.
+     * @param fragmentGLSL Pre-transpiled GLSL fragment shader source.
+     */
+    void LoadTexturesAndCompileFromPrepared(
+        PresetState& presetState,
+        const std::string& fragmentGLSL);
+
 private:
     /**
      * @brief Prepares the shader code to be translated into GLSL.

@@ -33,6 +33,16 @@ extern "C" {
 #endif
 
 /**
+ * @brief Opaque handle for prepared preset data.
+ *
+ * Holds the result of Phase 1 (background thread) preset preparation.
+ * Created by projectm_prepare_preset_file() and consumed by projectm_load_prepared_preset().
+ *
+ * @since 4.2.0
+ */
+typedef struct projectm_prepared_preset projectm_prepared_preset;
+
+/**
  * @brief Callback function for resolving function pointers.
  *
  * This callback functions is used to resolve platform-dependent GL function pointers.
@@ -171,6 +181,75 @@ PROJECTM_EXPORT char* projectm_get_version_string();
  * @since 4.0.0
  */
 PROJECTM_EXPORT char* projectm_get_vcs_version_string();
+
+/**
+ * @brief Prepares preset data from a file without requiring a GL context (Phase 1).
+ *
+ * Performs parsing, HLSL preprocessing, and HLSL-to-GLSL transpilation on the calling thread.
+ * Does NOT require a GL context or a projectM instance. Can be safely called from any thread,
+ * including background threads.
+ *
+ * The returned handle must be either passed to projectm_load_prepared_preset() or freed with
+ * projectm_free_prepared_preset(). Do NOT use both — projectm_load_prepared_preset() consumes
+ * and frees the prepared data.
+ *
+ * This function does not support "idle://" presets.
+ *
+ * @param filename The preset filename or URL to prepare.
+ * @return A handle to the prepared preset data, or NULL on allocation failure.
+ *         Check projectm_prepared_preset_is_valid() to see if preparation succeeded.
+ * @since 4.2.0
+ */
+PROJECTM_EXPORT projectm_prepared_preset* projectm_prepare_preset_file(const char* filename);
+
+/**
+ * @brief Returns whether the prepared preset data is valid and ready for loading.
+ *
+ * @param prepared A handle returned by projectm_prepare_preset_file().
+ * @return true if the data is valid, false if preparation failed.
+ * @since 4.2.0
+ */
+PROJECTM_EXPORT bool projectm_prepared_preset_is_valid(const projectm_prepared_preset* prepared);
+
+/**
+ * @brief Returns the error message if preset preparation failed.
+ *
+ * The returned pointer is valid until the prepared preset is freed.
+ *
+ * @param prepared A handle returned by projectm_prepare_preset_file().
+ * @return The error message, or an empty string if preparation succeeded. Do NOT free this string.
+ * @since 4.2.0
+ */
+PROJECTM_EXPORT const char* projectm_prepared_preset_get_error(const projectm_prepared_preset* prepared);
+
+/**
+ * @brief Loads a previously prepared preset (Phase 2, GL thread only).
+ *
+ * Completes the async loading by creating GL resources and compiling shaders from the
+ * pre-transpiled GLSL. MUST be called on the GL thread with the OpenGL context active.
+ *
+ * This function consumes the prepared data and frees it. The handle must not be used after
+ * this call (do NOT call projectm_free_prepared_preset() on it).
+ *
+ * @param instance The projectM instance handle.
+ * @param prepared A handle returned by projectm_prepare_preset_file(). Consumed and freed.
+ * @param smooth_transition If true, the new preset is smoothly blended over.
+ * @since 4.2.0
+ */
+PROJECTM_EXPORT void projectm_load_prepared_preset(projectm_handle instance,
+                                                    projectm_prepared_preset* prepared,
+                                                    bool smooth_transition);
+
+/**
+ * @brief Frees prepared preset data without loading it.
+ *
+ * Use this if you decide not to load the prepared preset. Can be called from any thread.
+ * Do NOT call this if you already passed the handle to projectm_load_prepared_preset().
+ *
+ * @param prepared A handle returned by projectm_prepare_preset_file(). May be NULL.
+ * @since 4.2.0
+ */
+PROJECTM_EXPORT void projectm_free_prepared_preset(projectm_prepared_preset* prepared);
 
 #ifdef __cplusplus
 } // extern "C"

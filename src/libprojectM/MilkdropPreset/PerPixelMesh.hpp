@@ -42,6 +42,21 @@ public:
     void CompileWarpShader(PresetState& presetState);
 
     /**
+     * @brief Compiles the warp shader from pre-transpiled GLSL and a pre-created shader object.
+     *
+     * Used by the async loading path. Takes ownership of the MilkdropShader that was
+     * created and transpiled on a background thread, then loads textures and compiles the
+     * final GL shader program on the GL thread.
+     *
+     * @param presetState The preset state for texture and render context access.
+     * @param shader Pre-created MilkdropShader with LoadCode() already called.
+     * @param fragmentGLSL Pre-transpiled GLSL fragment shader source.
+     */
+    void CompileWarpShaderFromPrepared(PresetState& presetState,
+                                        std::unique_ptr<MilkdropShader> shader,
+                                        const std::string& fragmentGLSL);
+
+    /**
      * @brief Renders the transformation mesh.
      * @param presetState The preset state to retrieve the configuration values from.
      * @param presetPerFrameContext The per-frame context to retrieve the initial vars from.

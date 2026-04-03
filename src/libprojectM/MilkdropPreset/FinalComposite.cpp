@@ -94,6 +94,43 @@ void FinalComposite::CompileCompositeShader(PresetState& presetState)
     }
 }
 
+void FinalComposite::CompileCompositeShaderFromPrepared(
+    PresetState& presetState,
+    std::unique_ptr<MilkdropShader> shader,
+    const std::string& fragmentGLSL,
+    bool usedFallback)
+{
+    if (!shader)
+    {
+        // No composite shader (Milkdrop 1.x style) — nothing to compile
+        return;
+    }
+
+    m_compositeShader = std::move(shader);
+
+    try
+    {
+        m_compositeShader->LoadTexturesAndCompileFromPrepared(presetState, fragmentGLSL);
+        if (usedFallback)
+        {
+            LOG_DEBUG("[FinalComposite] Successfully compiled fallback composite shader from prepared GLSL.");
+        }
+        else
+        {
+            LOG_DEBUG("[FinalComposite] Successfully compiled composite shader from prepared GLSL.");
+        }
+    }
+    catch (Renderer::ShaderException& ex)
+    {
+        LOG_WARN("[FinalComposite] Error compiling composite shader from prepared GLSL - Using fallback shader.");
+
+        // Fall back to default shader (same as synchronous path)
+        m_compositeShader = std::make_unique<MilkdropShader>(MilkdropShader::ShaderType::CompositeShader);
+        m_compositeShader->LoadCode(defaultCompositeShader);
+        m_compositeShader->LoadTexturesAndCompile(presetState);
+    }
+}
+
 void FinalComposite::Draw(const PresetState& presetState, const PerFrameContext& perFrameContext)
 {
     if (m_compositeShader)

@@ -83,6 +83,27 @@ void PerPixelMesh::CompileWarpShader(PresetState& presetState)
     }
 }
 
+void PerPixelMesh::CompileWarpShaderFromPrepared(
+    PresetState& presetState,
+    std::unique_ptr<MilkdropShader> shader,
+    const std::string& fragmentGLSL)
+{
+    m_warpShader = std::move(shader);
+    if (m_warpShader && !fragmentGLSL.empty())
+    {
+        try
+        {
+            m_warpShader->LoadTexturesAndCompileFromPrepared(presetState, fragmentGLSL);
+            LOG_DEBUG("[PerPixelMesh] Successfully compiled warp shader from prepared GLSL.");
+        }
+        catch (Renderer::ShaderException&)
+        {
+            LOG_ERROR("[PerPixelMesh] Error compiling warp shader from prepared GLSL.");
+            m_warpShader.reset();
+        }
+    }
+}
+
 void PerPixelMesh::Draw(const PresetState& presetState,
                         const PerFrameContext& perFrameContext,
                         PerPixelContext& perPixelContext)

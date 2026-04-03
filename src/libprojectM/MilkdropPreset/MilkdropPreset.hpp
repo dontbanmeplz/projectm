@@ -32,6 +32,7 @@
 #include "PerFrameContext.hpp"
 #include "PerPixelContext.hpp"
 #include "PerPixelMesh.hpp"
+#include "PreparedPresetData.hpp"
 #include "Preset.hpp"
 #include "Waveform.hpp"
 
@@ -67,10 +68,36 @@ public:
     MilkdropPreset(std::istream& presetData);
 
     /**
+     * @brief Construct a MilkdropPreset from PreparedPresetData (GL thread only).
+     *
+     * All CPU-heavy work (file parsing, HLSL preprocessing, transpilation) was already
+     * performed on a background thread. This constructor only creates GL resources
+     * (framebuffers, textures, VAOs) and applies the already-parsed preset state.
+     *
+     * @param data The prepared data from Phase 1 background processing. The parsedFile
+     *             member is used to initialize the preset state; warpShader and compShader
+     *             are not consumed here (they are used later in InitializeFromPreparedData).
+     */
+    explicit MilkdropPreset(PreparedPresetData& data);
+
+    /**
      * @brief Initializes the preset with rendering-related data.
      * @param renderContext The initial render context.
      */
     void Initialize(const Renderer::RenderContext& renderContext) override;
+
+    /**
+     * @brief Initializes the preset from prepared data (GL thread only).
+     *
+     * Replaces Initialize() for the async loading path. Uses pre-transpiled GLSL
+     * and pre-created shader objects from PreparedPresetData instead of performing
+     * HLSL→GLSL transpilation on the GL thread.
+     *
+     * @param renderContext The initial render context.
+     * @param data The prepared data containing pre-transpiled GLSL and shader objects.
+     */
+    void InitializeFromPreparedData(const Renderer::RenderContext& renderContext,
+                                     PreparedPresetData& data);
 
     /**
      * @brief Renders the preset.
@@ -129,6 +156,7 @@ private:
     FinalComposite m_finalComposite; //!< Final composite shader or filters.
 
     bool m_isFirstFrame{true}; //!< Controls drawing the motion vectors starting with the second frame.
+    bool m_initialized{false}; //!< Tracks whether Initialize() has been called; prevents double-initialization in async path.
 };
 
 } // namespace MilkdropPreset

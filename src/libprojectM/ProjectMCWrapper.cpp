@@ -9,6 +9,9 @@
 #include <Audio/AudioConstants.hpp>
 #include <Renderer/Platform/GLResolver.hpp>
 
+#include <MilkdropPreset/Factory.hpp>
+#include <MilkdropPreset/PreparedPresetData.hpp>
+
 #include <projectM-4/parameters.h>
 #include <projectM-4/render_opengl.h>
 
@@ -560,4 +563,64 @@ void projectm_set_log_level(projectm_log_level log_level, bool current_thread_on
     {
         libprojectM::Logging::SetGlobalLogLevel(static_cast<libprojectM::Logging::LogLevel>(log_level));
     }
+}
+
+// --- Async Preset Loading API (Phase 1 / Phase 2) ---
+
+struct projectm_prepared_preset
+{
+    std::unique_ptr<libprojectM::MilkdropPreset::PreparedPresetData> data;
+};
+
+projectm_prepared_preset* projectm_prepare_preset_file(const char* filename)
+{
+    if (!filename)
+    {
+        return nullptr;
+    }
+
+    try
+    {
+        auto* prepared = new projectm_prepared_preset();
+        prepared->data = libprojectM::MilkdropPreset::Factory::PreparePresetFromFile(filename);
+        return prepared;
+    }
+    catch (...)
+    {
+        return nullptr;
+    }
+}
+
+bool projectm_prepared_preset_is_valid(const projectm_prepared_preset* prepared)
+{
+    return prepared && prepared->data && prepared->data->valid;
+}
+
+const char* projectm_prepared_preset_get_error(const projectm_prepared_preset* prepared)
+{
+    if (!prepared || !prepared->data)
+    {
+        return "";
+    }
+    return prepared->data->errorMessage.c_str();
+}
+
+void projectm_load_prepared_preset(projectm_handle instance,
+                                    projectm_prepared_preset* prepared,
+                                    bool smooth_transition)
+{
+    auto projectMInstance = handle_to_instance(instance);
+    if (!projectMInstance || !prepared || !prepared->data)
+    {
+        delete prepared;
+        return;
+    }
+
+    projectMInstance->LoadPreparedPreset(std::move(prepared->data), smooth_transition);
+    delete prepared;
+}
+
+void projectm_free_prepared_preset(projectm_prepared_preset* prepared)
+{
+    delete prepared;
 }

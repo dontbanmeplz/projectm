@@ -53,8 +53,33 @@ MilkdropPreset::MilkdropPreset(std::istream& presetData)
     Load(presetData);
 }
 
+MilkdropPreset::MilkdropPreset(PreparedPresetData& data)
+    : m_absoluteFilePath(data.filePath)
+    , m_perFrameContext(m_state.globalMemory, &m_state.globalRegisters)
+    , m_perPixelContext(m_state.globalMemory, &m_state.globalRegisters)
+    , m_motionVectors(m_state)
+    , m_waveform(m_state)
+    , m_darkenCenter(m_state)
+    , m_border(m_state)
+{
+    LOG_DEBUG("[MilkdropPreset] Constructing preset from prepared data: \"" + data.filePath + "\".")
+
+    SetFilename(ParseFilename(data.filePath));
+
+    // Initialize the preset from the already-parsed file data.
+    // This creates GL resources (FBOs, textures) but does NOT load shader code —
+    // that will come from the pre-transpiled GLSL in InitializeFromPreparedData().
+    InitializePreset(data.parsedFile);
+}
+
 void MilkdropPreset::Initialize(const Renderer::RenderContext& renderContext)
 {
+    if (m_initialized)
+    {
+        return; // Already initialized via InitializeFromPreparedData()
+    }
+    m_initialized = true;
+
     assert(renderContext.textureManager);
     m_state.renderContext = renderContext;
     m_state.blurTexture.Initialize(renderContext);
@@ -73,6 +98,36 @@ void MilkdropPreset::Initialize(const Renderer::RenderContext& renderContext)
 
     m_perPixelMesh.CompileWarpShader(m_state);
     m_finalComposite.CompileCompositeShader(m_state);
+}
+
+void MilkdropPreset::InitializeFromPreparedData(
+    const Renderer::RenderContext& renderContext,
+    PreparedPresetData& data)
+{
+    m_initialized = true; // Prevent double-initialization via Initialize()
+
+    assert(renderContext.textureManager);
+    m_state.renderContext = renderContext;
+    m_state.blurTexture.Initialize(renderContext);
+    m_state.LoadShaders();
+
+    // Compile eval bytecode and run init expressions (fast, ~10ms)
+    CompileCodeAndRunInitExpressions();
+
+    // Set up framebuffer sizes (GL calls)
+    m_framebuffer.SetSize(renderContext.viewportSizeX, renderContext.viewportSizeY);
+    m_motionVectorUVMap->SetSize(renderContext.viewportSizeX, renderContext.viewportSizeY);
+    if (m_state.mainTexture.expired())
+    {
+        m_state.mainTexture = m_framebuffer.GetColorAttachmentTexture(1, 0);
+    }
+
+    // Use pre-transpiled GLSL and pre-created shader objects from Phase 1
+    m_perPixelMesh.CompileWarpShaderFromPrepared(
+        m_state, std::move(data.warpShader), data.warpFragmentGLSL);
+    m_finalComposite.CompileCompositeShaderFromPrepared(
+        m_state, std::move(data.compShader), data.compFragmentGLSL,
+        data.usedCompositeFallback);
 }
 
 void MilkdropPreset::RenderFrame(const libprojectM::Audio::FrameAudioData& audioData, const Renderer::RenderContext& renderContext)

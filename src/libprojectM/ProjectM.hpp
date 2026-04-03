@@ -35,6 +35,10 @@
 
 namespace libprojectM {
 
+namespace MilkdropPreset {
+struct PreparedPresetData;
+} // namespace MilkdropPreset
+
 namespace Renderer {
 class CopyTexture;
 class PresetTransition;
@@ -99,6 +103,21 @@ public:
      *                         If set to false, the new preset will be rendered immediately.
      */
     void LoadPresetData(std::istream& presetData, bool smoothTransition);
+
+    /**
+     * @brief Loads a preset from PreparedPresetData (Phase 2 of async loading, GL thread only).
+     *
+     * Phase 1 (parsing + HLSL→GLSL transpilation) was already done on a background thread
+     * via Factory::PreparePresetFromFile(). This method creates GL resources and compiles
+     * the shaders from pre-transpiled GLSL, minimizing GL-thread blocking time.
+     *
+     * If the prepared data is invalid, calls PresetSwitchFailedEvent.
+     *
+     * @param data The prepared preset data from Phase 1.
+     * @param smoothTransition If set to true, old and new presets will be blended over smoothly.
+     */
+    void LoadPreparedPreset(std::unique_ptr<MilkdropPreset::PreparedPresetData> data,
+                             bool smoothTransition);
 
     void SetWindowSize(uint32_t width, uint32_t height);
 

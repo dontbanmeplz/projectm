@@ -32,6 +32,26 @@ public:
     void CompileCompositeShader(PresetState& presetState);
 
     /**
+     * @brief Compiles the composite shader from pre-transpiled GLSL and a pre-created shader object.
+     *
+     * Used by the async loading path. Takes ownership of the MilkdropShader that was
+     * created and transpiled on a background thread, then loads textures and compiles the
+     * final GL shader program on the GL thread.
+     *
+     * If compilation fails and a fallback was used during preparation, falls back to the
+     * default composite shader (same behavior as the synchronous path).
+     *
+     * @param presetState The preset state for texture and render context access.
+     * @param shader Pre-created MilkdropShader with LoadCode() already called.
+     * @param fragmentGLSL Pre-transpiled GLSL fragment shader source.
+     * @param usedFallback True if the preparation phase had to use a fallback default shader.
+     */
+    void CompileCompositeShaderFromPrepared(PresetState& presetState,
+                                             std::unique_ptr<MilkdropShader> shader,
+                                             const std::string& fragmentGLSL,
+                                             bool usedFallback);
+
+    /**
      * @brief Renders the composite quad with the appropriate effects or shaders.
      * @param presetState The preset state to retrieve the configuration values from.
      * @param presetPerFrameContext The per-frame context to retrieve the initial vars from.
